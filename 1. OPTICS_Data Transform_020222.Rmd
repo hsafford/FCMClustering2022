@@ -1,0 +1,84 @@
+---
+title: "OPTICS_Data Transform_020222"
+author: Hannah Safford
+date: "February 2, 2022"
+output: html_notebook
+---
+
+```{r}
+## LOAD LIBRARIES
+library("tidyverse")
+require(gtools)
+```
+
+```{r}
+## DEFINE GLOBAL VARIABLES
+dataFileDirectory = "rawData/" # Directory of .csv files containing raw FCM data for transformation (organized into folders with dilutionFolders names)
+saveDirectory = "scaledData/" # Directory where .csv files containing transformed data will be saved
+dilutionFolders = c("1x","2x","4x","8x","16x")
+replicates = c("Rep 1","Rep 2","Rep 3","Rep 4","Rep 5","Rep 6","Rep 7","Rep 8","Rep 9","Rep 10")
+```
+
+```{r}
+## READ IN RAW FCM DATA
+rawData = list()
+x = length(dilutionFolders)
+y = length(replicates)
+
+for (i in 1:x) {
+  temp = mixedsort(list.files(paste(dataFileDirectory,dilutionFolders[i],sep=""),pattern="*.csv"))
+  temp=lapply(temp,function(x) paste(dataFileDirectory,dilutionFolders[i],"/",x,sep=""))
+  dilutionData = list()
+  
+  for (j in 1:y) {
+    files = read.csv(temp[[j]])
+    dilutionData[j] = list(files)
+  }
+  
+  rawData[i]=list(dilutionData)
+}
+```
+
+```{r} 
+## LOG TRANSFORM, SCALE, AND CENTER DATA
+newData = list()
+
+for (i in 1:x) {
+  a = rawData[[i]]
+  
+  for (j in 1:y) {
+    b = a[[j]]
+    b <- b %>%
+      rename(
+        FSC = FSC.H,
+        SSC = SSC.H,
+        FITC = B530.H
+      )
+    drop <- c("FSC","SSC","FITC","Time")
+    b = b[,(names(b) %in% drop)]
+    b$FSC_scale = scale(log1p(b$FSC))[,] # Save scaled values as new columns
+    b$SSC_scale = scale(log1p(b$SSC))[,]
+    b$FITC_scale = scale(log1p(b$FITC))[,]
+    a[[j]] = b
+  }
+  
+  newData[[i]] = a
+}
+```
+
+```{r}
+## SAVE TRANSFORMED DATA
+x = length(rawData)
+
+for (i in 1:x) {
+  a = newData[[i]]
+  temp = mixedsort(list.files(paste(dataFileDirectory,dilutionFolders[i],sep=""),pattern="*.csv"))
+  temp=lapply(temp,function(x) paste(dataFileDirectory,dilutionFolders[i],"/",x,sep=""))
+  temp=lapply(temp,function(x) paste(saveDirectory,dilutions[i],"/",x,sep=""))
+  
+  for (j in 1:y) {
+    write_csv(a[[j]],temp[[j]])
+  }
+  
+}
+```
