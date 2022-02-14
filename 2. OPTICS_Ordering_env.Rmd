@@ -1,0 +1,69 @@
+---
+title: "OPTICS_Ordering_env"
+author: Hannah Safford
+date: "February 2, 2022"
+output: html_notebook
+---
+
+```{r}
+## LOAD LIBRARIES
+library(opticskxi) # Documentation available at 
+library(ggplot2)
+library("RColorBrewer")
+library("tidyverse")
+require(gtools)
+```
+
+```{r}
+## DEFINE GLOBAL VARIABLES
+dataFileDirectory = "scaledData/" # Directory of .csv files containing transformed FCM data for OPTICS ordering (organized into folders with dilutionFolders names)
+dilutionFolders = c("filteredEff10xPos","filteredEff10xNeg")
+replicates = c("Rep 1","Rep 2","Rep 3","Rep 4","Rep 5","Rep 6","Rep 7","Rep 8","Rep 9","Rep 10")
+```
+
+```{r}
+## READ IN TRANSFORMED FCM DATA
+rawData = list()
+scaledData = list()
+fileNames = list ()
+x = length(dilutionFolders)
+y = length(replicates)
+
+for (i in 1:x) {
+  temp = mixedsort(list.files(paste(dataFileDirectory,dilutionFolders[i],sep=""),pattern="*.csv"))
+  temp=lapply(temp,function(x) paste(dataFileDirectory,dilutionFolders[i],"/",x,sep=""))
+  fileNames[i]=list(temp)
+  dilutionData = list()
+  
+  for (j in 1:y) {
+    files = read.csv(temp[[j]])
+    dilutionData[j] = list(files)
+  }
+  
+  scaledData[i]=list(dilutionData)
+}
+```
+
+```{r}
+## PERFORM OPTICS ORDERING
+opticsObjs = list()
+cols = 5:7 # Columns of each data sheet containing data that should be used in the clustering. Adjust to 6:7 to get ordering without considering FSC dimension.
+points = 6 # Value to be used for minPts in the OPTICS algorithm
+epsilon = 0.1 # Epsilon value used as bounding parameter to reduce OPTICS runtime
+
+for (i in 1:x) {
+  tempObjs = list()
+  a = scaledData[[i]]
+  
+  for (j in 1:y) {
+    b = a[[j]]
+    temp_obj <- dbscan::optics(b[cols], eps = epsilon, minPts = points)
+    tempObjs[j] = list(temp_obj)
+    saveFileName = gsub("csv","rda",fileNames[[i]][[j]]) # Used to save OPTICS objects as .rda files, which can be quickly loaded to the R workspace for downstream analysis
+    # saveFileName = gsub("Rep","noFSC_Rep",saveFileName) # Uncomment if not considering FSC dimension
+    save(temp_obj,file = saveFileName)
+  }
+  
+  opticsObjs[i] = list(tempObjs)
+}
+```
